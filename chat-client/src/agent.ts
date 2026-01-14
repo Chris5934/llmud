@@ -69,12 +69,14 @@ function createModel(config: ModelConfig): BaseChatModel {
       return new ChatAnthropic({
         model: config.model || "claude-sonnet-4-20250514",
         temperature: 0.7,
+        maxTokens: Number(process.env.MAX_TOKENS || 1024),
       });
     case "openai":
     default:
       return new ChatOpenAI({
         model: config.model || "gpt-4o",
         temperature: 0.7,
+        maxTokens: Number(process.env.MAX_TOKENS || 1024),
       });
   }
 }
