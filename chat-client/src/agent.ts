@@ -45,6 +45,9 @@ When in IC mode, be descriptive, dramatic, and fun!
 Use the lookup tools to reference lore and keep the world consistent.
 When combat happens, use roll_dice and describe the action cinematically.`;
 
+// Maximum length for SVG content when includeSvg is true (in characters)
+const MAX_SVG_LENGTH = 200;
+
 export type ModelProvider = "openai" | "anthropic";
 
 export interface ModelConfig {
@@ -166,7 +169,7 @@ export async function createGameAgent(
           for (const msg of chunk.tools.messages) {
             // Sanitize get_current_map tool results to avoid inserting large SVGs into the LLM prompt.
             // If includeSvg is false (default), remove the svg field entirely.
-            // If includeSvg is true, truncate the svg to the first 200 chars to limit prompt size.
+            // If includeSvg is true, truncate the svg to the first MAX_SVG_LENGTH chars to limit prompt size.
             try {
               if (msg instanceof ToolMessage && msg.name === "get_current_map") {
                 const content = msg.content;
@@ -175,14 +178,15 @@ export async function createGameAgent(
                   const cloned = { ...(content as Record<string, unknown>) };
                   if (config.includeSvg) {
                     if (typeof cloned.svg === "string") {
-                      cloned.svg = cloned.svg.slice(0, 200); // truncate to 200 chars
+                      cloned.svg = cloned.svg.slice(0, MAX_SVG_LENGTH);
                     }
                   } else {
                     // Remove svg entirely
                     delete cloned.svg;
                   }
-                  // Assign sanitized content back onto the message object so the LLM only sees allowed fields.
-                  (msg as any).content = cloned;
+                  // Assign sanitized content. Using Object.assign to modify the message content
+                  // while maintaining compatibility with ToolMessage's content type
+                  Object.assign(msg, { content: cloned });
                 }
               }
             } catch (err) {
