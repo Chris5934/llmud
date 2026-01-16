@@ -13,7 +13,7 @@ The server runs as HTTP and provides MCP tools for game masters and AI assistant
 
 import argparse
 import sys
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastmcp import FastMCP
 
@@ -313,10 +313,10 @@ def move_character(session_id: str, direction: str) -> Dict[str, Any]:
 @mcp.tool()
 def random_encounter(
     biome: str,
-    difficulty: str = None,
-    party_level: int = None,
-    party_size: int = None,
-    seed: int = None
+    difficulty: Optional[str] = None,
+    party_level: Optional[int] = None,
+    party_size: Optional[int] = None,
+    seed: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Generate a random encounter for a specific biome.
