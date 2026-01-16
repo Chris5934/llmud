@@ -13,7 +13,7 @@ The server runs as HTTP and provides MCP tools for game masters and AI assistant
 
 import argparse
 import sys
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastmcp import FastMCP
 
@@ -37,6 +37,7 @@ from tools.movement import (
     get_current_map as _get_current_map,
     move_character as _move_character,
 )
+from tools.random_encounter import random_encounter as _random_encounter
 
 # Create the FastMCP server
 mcp = FastMCP(
@@ -302,6 +303,56 @@ def move_character(session_id: str, direction: str) -> Dict[str, Any]:
         On invalid direction: error with list of valid_exits.
     """
     return _move_character(session_id, direction)
+
+
+# ============================================================================
+# Random Encounter Tools
+# ============================================================================
+
+
+@mcp.tool()
+def random_encounter(
+    biome: str,
+    difficulty: Optional[str] = None,
+    party_level: Optional[int] = None,
+    party_size: Optional[int] = None,
+    seed: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Generate a random encounter for a specific biome.
+
+    Use this to create dynamic encounters based on the environment. The tool
+    provides a complete encounter with narrative hooks, combat details, and
+    potential rewards. The difficulty parameter influences encounter selection,
+    making 'easy' favor safer encounters and 'hard' favor more dangerous ones.
+
+    Args:
+        biome: The environment type (forest, city, or dungeon)
+        difficulty: Optional difficulty level (easy, medium, or hard)
+        party_level: Optional party level for scaling (currently informational)
+        party_size: Optional number of party members (currently informational)
+        seed: Optional seed for deterministic random selection
+
+    Returns:
+        Dictionary with:
+        - biome: The environment type
+        - difficulty: The difficulty level (if provided)
+        - party_level: The party level (if provided)
+        - party_size: The party size (if provided)
+        - encounter_name: Name of the encounter
+        - hook: Initial narrative hook to introduce the encounter
+        - scene: Description of the encounter scene
+        - combatants: Array of creature/NPC names involved in combat (empty for non-combat)
+        - twist: Unexpected element or alternative approach
+        - noncombat_out: Peaceful resolution option
+        - loot: Array of items or rewards available
+
+    Examples:
+        random_encounter("forest") -> Random forest encounter
+        random_encounter("dungeon", difficulty="hard", seed=42) -> Deterministic hard dungeon encounter
+        random_encounter("city", difficulty="easy", party_level=3, party_size=4) -> Easy city encounter for level 3 party of 4
+    """
+    return _random_encounter(biome, difficulty, party_level, party_size, seed)
 
 
 # ============================================================================

@@ -5,6 +5,7 @@ from .lore import lookup_geography, lookup_npc, lookup_creature, lookup_scenario
 from .session import create_session, get_session_state
 from .character import read_character, update_character
 from .movement import get_current_map, move_character
+from .random_encounter import random_encounter
 
 __all__ = [
     "roll_dice",
@@ -18,4 +19,5 @@ __all__ = [
     "update_character",
     "get_current_map",
     "move_character",
+    "random_encounter",
 ]
