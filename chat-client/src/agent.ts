@@ -50,6 +50,7 @@ export type ModelProvider = "openai" | "anthropic";
 export interface ModelConfig {
   provider: ModelProvider;
   model?: string;
+  includeSvg?: boolean;
 }
 
 export interface DebugCallbacks {
@@ -160,6 +161,31 @@ export async function createGameAgent(
         // Process tool node outputs (tool results)
         if (chunk.tools?.messages) {
           for (const msg of chunk.tools.messages) {
+            // Sanitize get_current_map tool results to handle large SVGs
+            if (msg instanceof ToolMessage && msg.name === "get_current_map") {
+              try {
+                if (typeof msg.content === "object" && msg.content !== null) {
+                  // Clone the content object to avoid mutating the original
+                  const cloned: any = { ...msg.content };
+                  
+                  if (config.includeSvg === true) {
+                    // If includeSvg is true, truncate svg to first 200 characters
+                    if (typeof cloned.svg === "string") {
+                      cloned.svg = cloned.svg.slice(0, 200);
+                    }
+                  } else {
+                    // If includeSvg is false (default), remove svg field entirely
+                    delete cloned.svg;
+                  }
+                  
+                  // Assign sanitized content back to the message
+                  msg.content = cloned;
+                }
+              } catch (error) {
+                // Non-blocking: if sanitization fails, continue with original content
+              }
+            }
+            
             newMessages.push(msg);
             
             if (msg instanceof ToolMessage && debugCallbacks?.onToolResult) {
