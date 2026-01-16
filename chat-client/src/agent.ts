@@ -45,11 +45,17 @@ When in IC mode, be descriptive, dramatic, and fun!
 Use the lookup tools to reference lore and keep the world consistent.
 When combat happens, use roll_dice and describe the action cinematically.`;
 
+// Maximum length for SVG content when includeSvg is true (in characters)
+const MAX_SVG_LENGTH = 200;
+
 export type ModelProvider = "openai" | "anthropic";
 
 export interface ModelConfig {
   provider: ModelProvider;
   model?: string;
+  // Whether to include SVG content from get_current_map tool results
+  // in the LLM prompt. Defaults to false (do not include).
+  // When true, SVG is truncated to MAX_SVG_LENGTH characters to limit prompt size.
   includeSvg?: boolean;
 }
 
@@ -163,7 +169,9 @@ export async function createGameAgent(
           for (const msg of chunk.tools.messages) {
             let messageToAdd = msg;
             
-            // Sanitize get_current_map tool results to handle large SVGs
+            // Sanitize get_current_map tool results to avoid inserting large SVGs into the LLM prompt.
+            // If includeSvg is false (default), remove the svg field entirely.
+            // If includeSvg is true, truncate the svg to the first MAX_SVG_LENGTH chars to limit prompt size.
             if (msg instanceof ToolMessage && msg.name === "get_current_map") {
               try {
                 if (typeof msg.content === "object" && msg.content !== null) {
@@ -171,9 +179,9 @@ export async function createGameAgent(
                   const cloned: any = JSON.parse(JSON.stringify(msg.content));
                   
                   if (config.includeSvg === true) {
-                    // If includeSvg is true, truncate svg to first 200 characters
+                    // If includeSvg is true, truncate svg to first MAX_SVG_LENGTH characters
                     if (typeof cloned.svg === "string") {
-                      cloned.svg = cloned.svg.slice(0, 200);
+                      cloned.svg = cloned.svg.slice(0, MAX_SVG_LENGTH);
                     }
                   } else {
                     // If includeSvg is false (default), remove svg field entirely
@@ -189,7 +197,9 @@ export async function createGameAgent(
                   });
                 }
               } catch (error) {
-                // Non-blocking: if sanitization fails, continue with original content
+                // If sanitization fails for any reason, fall back to original msg content.
+                // Do not block message processing; just continue.
+                console.warn("Failed to sanitize tool result:", error);
               }
             }
             
