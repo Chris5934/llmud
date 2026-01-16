@@ -161,12 +161,14 @@ export async function createGameAgent(
         // Process tool node outputs (tool results)
         if (chunk.tools?.messages) {
           for (const msg of chunk.tools.messages) {
+            let messageToAdd = msg;
+            
             // Sanitize get_current_map tool results to handle large SVGs
             if (msg instanceof ToolMessage && msg.name === "get_current_map") {
               try {
                 if (typeof msg.content === "object" && msg.content !== null) {
-                  // Clone the content object to avoid mutating the original
-                  const cloned: any = { ...msg.content };
+                  // Deep-clone the content object to avoid mutating the original, including nested objects
+                  const cloned: any = JSON.parse(JSON.stringify(msg.content));
                   
                   if (config.includeSvg === true) {
                     // If includeSvg is true, truncate svg to first 200 characters
@@ -178,21 +180,26 @@ export async function createGameAgent(
                     delete cloned.svg;
                   }
                   
-                  // Assign sanitized content back to the message
-                  msg.content = cloned;
+                  // Create a new ToolMessage with sanitized content instead of mutating the original
+                  messageToAdd = new ToolMessage({
+                    content: cloned,
+                    tool_call_id: msg.tool_call_id,
+                    name: msg.name,
+                    additional_kwargs: msg.additional_kwargs,
+                  });
                 }
               } catch (error) {
                 // Non-blocking: if sanitization fails, continue with original content
               }
             }
             
-            newMessages.push(msg);
+            newMessages.push(messageToAdd);
             
-            if (msg instanceof ToolMessage && debugCallbacks?.onToolResult) {
-              const content = typeof msg.content === "string" 
-                ? msg.content 
-                : JSON.stringify(msg.content);
-              debugCallbacks.onToolResult(msg.name || "unknown", content);
+            if (messageToAdd instanceof ToolMessage && debugCallbacks?.onToolResult) {
+              const content = typeof messageToAdd.content === "string" 
+                ? messageToAdd.content 
+                : JSON.stringify(messageToAdd.content);
+              debugCallbacks.onToolResult(messageToAdd.name || "unknown", content);
             }
           }
         }
