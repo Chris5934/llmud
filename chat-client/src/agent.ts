@@ -45,11 +45,18 @@ When in IC mode, be descriptive, dramatic, and fun!
 Use the lookup tools to reference lore and keep the world consistent.
 When combat happens, use roll_dice and describe the action cinematically.`;
 
+// Maximum length for SVG content when includeSvg is true (in characters)
+const MAX_SVG_LENGTH = 200;
+
 export type ModelProvider = "openai" | "anthropic";
 
 export interface ModelConfig {
   provider: ModelProvider;
   model?: string;
+  // Whether to include SVG content from get_current_map tool results
+  // in the LLM prompt. Defaults to false (do not include).
+  // When true, SVG is truncated to 200 characters to limit prompt size.
+  includeSvg?: boolean;
 }
 
 export interface DebugCallbacks {
@@ -83,7 +90,7 @@ function createModel(config: ModelConfig): BaseChatModel {
 
 export async function createGameAgent(
   tools: StructuredToolInterface[],
-  config: ModelConfig = { provider: "openai" },
+  config: ModelConfig = { provider: "openai", includeSvg: false },
   debugCallbacks?: DebugCallbacks
 ): Promise<GameAgent> {
   const model = createModel(config);
@@ -160,6 +167,34 @@ export async function createGameAgent(
         // Process tool node outputs (tool results)
         if (chunk.tools?.messages) {
           for (const msg of chunk.tools.messages) {
+            // Sanitize get_current_map tool results to avoid inserting large SVGs into the LLM prompt.
+            // If includeSvg is false (default), remove the svg field entirely.
+            // If includeSvg is true, truncate the svg to the first MAX_SVG_LENGTH chars to limit prompt size.
+            try {
+              if (msg instanceof ToolMessage && msg.name === "get_current_map") {
+                const content = msg.content;
+                if (content && typeof content === "object" && !Array.isArray(content)) {
+                  // Clone content to avoid mutating other references
+                  const cloned = { ...(content as Record<string, unknown>) };
+                  if (config.includeSvg) {
+                    if (typeof cloned.svg === "string") {
+                      cloned.svg = cloned.svg.slice(0, MAX_SVG_LENGTH);
+                    }
+                  } else {
+                    // Remove svg entirely
+                    delete cloned.svg;
+                  }
+                  // Assign sanitized content. Using Object.assign to modify the message content
+                  // while maintaining compatibility with ToolMessage's content type
+                  Object.assign(msg, { content: cloned });
+                }
+              }
+            } catch (err) {
+              // If sanitization fails for any reason, fall back to original msg content.
+              // Do not block message processing; just continue.
+              console.warn("Failed to sanitize tool result:", err);
+            }
+
             newMessages.push(msg);
             
             if (msg instanceof ToolMessage && debugCallbacks?.onToolResult) {
