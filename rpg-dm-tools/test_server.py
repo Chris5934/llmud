@@ -30,6 +30,7 @@ from tools.lore import lookup_geography, lookup_npc, lookup_creature, lookup_sce
 from tools.session import create_session, get_session_state
 from tools.character import read_character, update_character
 from tools.movement import get_current_map, move_character
+from tools.random_encounter import random_encounter
 from utils.state import get_session_path
 
 
@@ -365,6 +366,98 @@ def test_movement() -> bool:
     return all_passed
 
 
+def test_random_encounter() -> bool:
+    """Test the random encounter tool."""
+    print_header("Testing Random Encounter")
+
+    all_passed = True
+
+    # Test each biome
+    for biome in ["forest", "city", "dungeon"]:
+        result = random_encounter(biome)
+        print_result(f"random_encounter('{biome}')", result)
+
+        # Verify result structure
+        required_keys = [
+            "biome", "encounter_name", "hook", "scene",
+            "combatants", "twist", "noncombat_out", "loot"
+        ]
+        for key in required_keys:
+            if key not in result:
+                print(f"  ERROR: Missing required key '{key}'")
+                all_passed = False
+
+        # Verify biome matches
+        if result.get("biome") != biome:
+            print(f"  ERROR: Biome mismatch - expected '{biome}', got '{result.get('biome')}'")
+            all_passed = False
+
+        # Verify combatants is an array
+        if not isinstance(result.get("combatants", None), list):
+            print(f"  ERROR: combatants must be an array, got {type(result.get('combatants'))}")
+            all_passed = False
+
+        # Verify loot is an array
+        if not isinstance(result.get("loot", None), list):
+            print(f"  ERROR: loot must be an array, got {type(result.get('loot'))}")
+            all_passed = False
+
+    # Test with difficulty
+    for difficulty in ["easy", "medium", "hard"]:
+        result = random_encounter("forest", difficulty=difficulty)
+        print_result(f"random_encounter('forest', difficulty='{difficulty}')", result)
+        
+        if result.get("difficulty") != difficulty:
+            print(f"  ERROR: Difficulty mismatch - expected '{difficulty}', got '{result.get('difficulty')}'")
+            all_passed = False
+
+    # Test with all optional parameters
+    result = random_encounter(
+        "dungeon",
+        difficulty="hard",
+        party_level=5,
+        party_size=4,
+        seed=42
+    )
+    print_result("random_encounter with all parameters", result)
+    
+    if result.get("party_level") != 5:
+        print(f"  ERROR: party_level mismatch")
+        all_passed = False
+    if result.get("party_size") != 4:
+        print(f"  ERROR: party_size mismatch")
+        all_passed = False
+
+    # Test deterministic behavior with seed
+    result1 = random_encounter("city", seed=12345)
+    result2 = random_encounter("city", seed=12345)
+    print_result("random_encounter with seed=12345 (first call)", result1)
+    print_result("random_encounter with seed=12345 (second call)", result2)
+    
+    if result1 != result2:
+        print("  ERROR: Seed should produce deterministic results")
+        all_passed = False
+    else:
+        print("  SUCCESS: Deterministic results with seed")
+
+    # Test that different seeds produce different results (probabilistically)
+    result3 = random_encounter("forest", seed=99999)
+    result4 = random_encounter("forest", seed=11111)
+    if result3.get("encounter_name") == result4.get("encounter_name"):
+        print("  Note: Different seeds produced same encounter (possible but unlikely)")
+
+    # Test invalid biome
+    try:
+        result = random_encounter("invalid_biome")
+        print_result("random_encounter('invalid_biome') - should fail", result)
+        print("  ERROR: Should have raised ValueError for invalid biome")
+        all_passed = False
+    except ValueError as e:
+        print(f"  SUCCESS: Correctly raised ValueError for invalid biome: {e}")
+
+    return all_passed
+
+
 def test_tools_list() -> None:
     """Print information about available tools (simulated tools/list)."""
     print_header("Available Tools (Schema)")
@@ -438,6 +531,17 @@ def test_tools_list() -> None:
                 "direction": "string - direction to move",
             },
         },
+        {
+            "name": "random_encounter",
+            "description": "Generate a random encounter for a specific biome",
+            "parameters": {
+                "biome": "string - environment type (forest, city, or dungeon)",
+                "difficulty": "string - optional difficulty level (easy, medium, or hard)",
+                "party_level": "number - optional party level",
+                "party_size": "number - optional party size",
+                "seed": "number - optional seed for deterministic results",
+            },
+        },
     ]
 
     print("\nTools list (simulated MCP tools/list response):")
@@ -470,6 +574,7 @@ def main():
         results["Session Management"] = test_session_management()
         results["Character Management"] = test_character_management()
         results["Movement"] = test_movement()
+        results["Random Encounter"] = test_random_encounter()
 
     finally:
         # Clean up
